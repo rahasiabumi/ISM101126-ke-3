@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Manajemen Stok & Peminjaman Gudang</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="light-mode">
+    <!-- Tempat notifikasi popup (toast) sementara ditampilkan, diisi lewat JS (fungsi toast()) -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Layar login, ditampilkan pertama kali sebelum ada sesi user yang aktif -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-card">
+            <!-- Panel kiri: identitas aplikasi -->
+            <aside class="login-brand">
+                <div class="login-logo" aria-hidden="true">SMI</div>
+                <h1 class="login-company">Satya Mahakarya Integra</h1>
+                <p class="login-tagline">Sistem Manajemen Stok &amp; Peminjaman</p>
+            </aside>
+
+            <!-- Panel kanan: form login -->
+            <section class="login-panel">
+                <h2 class="login-title">Masuk</h2>
+                <p class="login-subtitle">Masukkan username dan password Anda.</p>
+
+                <form id="login-form" class="login-form" novalidate>
+                    <div id="login-error" class="login-error hidden" role="alert" aria-live="assertive"></div>
+
+                    <div class="login-field">
+                        <label for="login-username">Username</label>
+                        <input type="text" id="login-username" name="username" placeholder="Masukkan username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                    </div>
+                    <div class="login-field">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" name="password" placeholder="Masukkan password" autocomplete="current-password" required>
+                    </div>
+
+                    <button type="submit" id="login-submit" class="login-submit">Masuk ke Sistem</button>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <!-- Layout utama aplikasi (sidebar + topbar + area konten), ditampilkan setelah user berhasil login -->
+    <div id="app-layout" class="app-layout hidden">
+        <!-- Sidebar navigasi; isinya (menu per role) diisi dinamis oleh renderSidebar() -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="SMII.png" alt="Logo ISM" class="brand-logo">
+                <button class="mobile-toggle" id="mobile-toggle-close"><i data-lucide="x"></i></button>
+            </div>
+            <!-- Daftar menu navigasi, dirender ulang oleh renderSidebar() setiap kali halaman/role berubah -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <i data-lucide="user-circle"></i>
+                    <div>
+                        <div id="user-display-name" class="user-name">User</div>
+                        <div id="user-display-role" class="user-role">Role</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="main-wrapper">
+            <!-- Bar atas: tombol menu (mobile), judul halaman, jam berjalan, ganti tema, dan logout -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="mobile-toggle" id="mobile-toggle-open"><i data-lucide="menu"></i></button>
+                    <div class="page-title" id="page-title">Dashboard</div>
+                </div>
+                <div class="topbar-right">
+                    <span id="live-clock" class="live-clock"></span>
+                    <button id="theme-toggle" class="btn-icon" title="Ubah Tema">
+                        <i data-lucide="moon"></i>
+                    </button>
+                    <button id="logout-btn" class="btn-icon text-danger" title="Keluar">
+                        <i data-lucide="log-out"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Area konten utama; isinya diganti-ganti oleh renderPage() sesuai halaman yang aktif -->
+            <main class="content-area" id="content-area">
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal dialog bersama, dipakai ulang untuk semua form (tambah/edit barang, peminjaman, dll) lewat openModal()/closeModal() -->
+    <div id="modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Judul Modal</h3>
+                <button class="modal-close" id="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body">
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal kamera realtime (Ambil Foto + watermark tanggal/waktu/lokasi), dipakai bersama
+         oleh form ATK/Consumable, Pengembalian (habis pakai), dan Pengajuan Pembelian -->
+    <div id="camera-modal" class="camera-modal hidden">
+        <div class="camera-modal-inner">
+            <div class="camera-header">
+                <h3 id="camera-modal-title">Ambil Foto</h3>
+                <button class="modal-close" onclick="closeCameraCapture()"><i data-lucide="x"></i></button>
+            </div>
+            <div class="camera-body">
+                <div id="camera-live-wrap" class="camera-live-wrap">
+                    <video id="camera-video" autoplay playsinline muted></video>
+                    <div id="camera-geo-status" class="camera-geo-status">Mendeteksi lokasi...</div>
+                </div>
+                <img id="camera-captured-preview" class="camera-captured-preview hidden">
+                <canvas id="camera-canvas" class="hidden"></canvas>
+            </div>
+            <div class="camera-controls" id="camera-controls-live">
+                <button type="button" class="btn-icon" id="camera-switch-btn" onclick="switchCamera()" title="Ganti Kamera">
+                    <i data-lucide="refresh-cw"></i>
+                </button>
+                <button type="button" class="btn btn-primary" onclick="captureCameraPhoto()">
+                    <i data-lucide="camera"></i>Ambil Foto
+                </button>
+            </div>
+            <div class="camera-controls hidden" id="camera-controls-captured">
+                <button type="button" class="btn btn-secondary" onclick="retakeCameraPhoto()">
+                    <i data-lucide="rotate-ccw"></i>Ambil Ulang
+                </button>
+                <button type="button" class="btn btn-primary" onclick="useCapturedCameraPhoto()">
+                    <i data-lucide="check"></i>Gunakan Foto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Area khusus untuk cetak (print) form pengajuan -->
+    <div id="print-area" class="print-area"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
